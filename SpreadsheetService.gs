@@ -20,7 +20,7 @@ const DEFAULT_CONFIG = [
   ['slotMinutes', '15'],
   ['timezone', 'Asia/Tokyo'],
   ['csvFolderId', '1BWBFBpOpfgX1ly8n77bad7SF4s16jAzf'],
-  ['csvFileName', 'event.csv'],
+  ['csvFileName', 'events.csv'],
   ['phoneBookId', '1GbWVn7HZ7fPWpiv2GTdpMXksU-SBzCM0UdAc7Bwb02M'],
   ['phoneBookAddressCol', '9'],  // I 列 (1-indexed)
   ['phoneBookNameCol', '6'],     // F 列 (1-indexed)

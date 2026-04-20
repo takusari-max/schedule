@@ -1,5 +1,5 @@
 /**
- * EventDataService: Drive 上の event.csv から予定データを読み込み、クライアント向けに整形する。
+ * EventDataService: Drive 上の events.csv から予定データを読み込み、クライアント向けに整形する。
  *
  * CSV 列:
  *   calendar_id, start_time, end_time, event_name, author, where,
@@ -24,7 +24,7 @@ const CSV_COL = {
 };
 
 /**
- * 指定された Drive フォルダ配下の event.csv を探して内容を返す。
+ * 指定された Drive フォルダ配下の events.csv を探して内容を返す。
  */
 function readEventCsv_(folderId, fileName) {
   const folder = DriveApp.getFolderById(folderId);

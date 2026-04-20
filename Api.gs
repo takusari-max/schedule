@@ -21,7 +21,7 @@ function getSchedules(startISO, endISO) {
 
   const config = getConfigMap_();
   const folderId = String(config.csvFolderId || '').trim();
-  const fileName = String(config.csvFileName || 'event.csv').trim();
+  const fileName = String(config.csvFileName || 'events.csv').trim();
   if (!folderId) throw new Error('Config シートに csvFolderId が未設定です。');
 
   // CSV から期間内イベントを取得

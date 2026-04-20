@@ -1,7 +1,7 @@
 # スケジュール調整アプリ (GAS)
 
 Google Apps Script で動く、複数メンバーの予定をタイムグリッドで横並び表示する Web アプリ。
-予定データは Google ドライブ上の **`event.csv`** を参照し、氏名は別スプレッドシート (**電話帳**) からアドレスで引き当てる。
+予定データは Google ドライブ上の **`events.csv`** を参照し、氏名は別スプレッドシート (**電話帳**) からアドレスで引き当てる。
 
 ## 機能
 
@@ -14,7 +14,7 @@ Google Apps Script で動く、複数メンバーの予定をタイムグリッ�
 
 ## データソース
 
-### event.csv (予定データ)
+### events.csv (予定データ)
 
 | 列 | 名称 | 用途 |
 | --- | --- | --- |
@@ -33,13 +33,13 @@ Google Apps Script で動く、複数メンバーの予定をタイムグリッ�
 | M | `participants` | (未使用) |
 
 - フォルダ ID (デフォルト): `1BWBFBpOpfgX1ly8n77bad7SF4s16jAzf`
-- ファイル名 (デフォルト): `event.csv`
+- ファイル名 (デフォルト): `events.csv`
 - 列 A (`calendar_id`) 単位でスケジュールを整理し、B/C/D で各予定を描画
 
 ### 電話帳スプレッドシート (氏名ルックアップ)
 
 - スプレッドシート ID (デフォルト): `1GbWVn7HZ7fPWpiv2GTdpMXksU-SBzCM0UdAc7Bwb02M`
-- I 列のアドレスと event.csv の `calendar_id` を照合し、一致した **F 列** の氏名を表示に用いる
+- I 列のアドレスと events.csv の `calendar_id` を照合し、一致した **F 列** の氏名を表示に用いる
 - マッチしない場合はアドレスをそのまま表示
 
 ## ファイル構成
@@ -110,7 +110,7 @@ CSV のフォルダ ID・ファイル名や電話帳 ID が上記デフォルト
 ### 6. Drive / 電話帳のアクセス権
 
 - Web アプリを「自分 (デプロイ者) として実行」で動かすので、**デプロイ者** が以下にアクセスできる必要がある
-  - `event.csv` があるフォルダ (デフォルト: `1BWBFBpOpfgX1ly8n77bad7SF4s16jAzf`)
+  - `events.csv` があるフォルダ (デフォルト: `1BWBFBpOpfgX1ly8n77bad7SF4s16jAzf`)
   - 電話帳スプレッドシート (デフォルト: `1GbWVn7HZ7fPWpiv2GTdpMXksU-SBzCM0UdAc7Bwb02M`)
 - 権限がない場合、デフォルトのフォルダ・スプレッドシートの所有者に「閲覧者」以上で共有依頼する
 
