@@ -3,8 +3,9 @@
  */
 
 function getConfig() {
-  const members = getMembers_();
   const config = getConfigMap_();
+  const memberRows = getMemberRows_();
+  const members = resolveMemberNames_(memberRows);
   return { members: members, config: config };
 }
 
@@ -18,25 +19,33 @@ function getSchedules(startISO, endISO) {
     throw new Error('終了日時は開始日時より後にしてください。');
   }
 
-  const members = getMembers_().filter(m => m.visible);
-  const visMap = getEventVisibilityMap_();
-  const allEvents = [];
-  const unavailable = [];
+  const config = getConfigMap_();
+  const folderId = String(config.csvFolderId || '').trim();
+  const fileName = String(config.csvFileName || 'event.csv').trim();
+  if (!folderId) throw new Error('Config シートに csvFolderId が未設定です。');
 
-  members.forEach(member => {
-    const result = fetchEventsForMember_(member.calendarId, start, end);
-    if (!result.accessible) {
-      unavailable.push({ calendarId: member.calendarId, name: member.name, error: result.error });
-      return;
-    }
-    result.events.forEach(ev => {
+  // CSV から期間内イベントを取得
+  const { events, calendarIds } = fetchEventsFromCsv_(folderId, fileName, start, end);
+
+  // 新しく登場した calendar_id は Members シートに自動登録 (Visible=TRUE)
+  syncMembersFromCalendarIds_(calendarIds);
+
+  // Members で visible=TRUE のものだけを残す
+  const memberRows = getMemberRows_();
+  const visibleSet = {};
+  memberRows.forEach(m => { if (m.visible) visibleSet[m.calendarId] = true; });
+
+  const visMap = getEventVisibilityMap_();
+  const filtered = events
+    .filter(ev => visibleSet[ev.calendarId])
+    .map(ev => {
       const visKey = ev.calendarId + '\t' + ev.eventKey;
       ev.showDetails = visMap[visKey] === true;
-      allEvents.push(ev);
+      return ev;
     });
-  });
 
-  return { events: allEvents, unavailable: unavailable };
+  const members = resolveMemberNames_(memberRows);
+  return { events: filtered, members: members, unavailable: [] };
 }
 
 function setMemberVisible(calendarId, visible) {
@@ -47,4 +56,27 @@ function setMemberVisible(calendarId, visible) {
 function setEventShowDetails(calendarId, eventKey, showDetails) {
   upsertEventVisibility_(String(calendarId), String(eventKey), !!showDetails);
   return { ok: true };
+}
+
+/**
+ * Members シート行と電話帳を結合し、表示用の氏名を付与する。
+ */
+function resolveMemberNames_(memberRows) {
+  let phoneMap = {};
+  try {
+    phoneMap = getPhoneBookMap_();
+  } catch (e) {
+    // 電話帳が読めなくてもメンバー一覧は返す
+    console.warn('電話帳取得失敗: ' + (e && e.message));
+  }
+  return memberRows.map(m => {
+    const key = m.calendarId.toLowerCase();
+    const name = phoneMap[key] || m.calendarId;
+    return {
+      calendarId: m.calendarId,
+      name: name,
+      visible: m.visible,
+      color: m.color
+    };
+  });
 }

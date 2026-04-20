@@ -45,12 +45,8 @@
     state.members = res.members || [];
     state.config = Object.assign(state.config, parseConfig(res.config || {}));
     renderMemberList();
-    if (state.members.length === 0) {
-      $('memberEmpty').hidden = false;
-      setStatus('');
-      return;
-    }
-    $('memberEmpty').hidden = true;
+    $('memberEmpty').hidden = state.members.length > 0;
+    // 初回は CSV を読み込みつつ Members 自動同期を走らせる
     loadSchedules();
   }
 
@@ -115,25 +111,19 @@
   function onSchedulesLoaded(res) {
     state.events = res.events || [];
     state.unavailable = res.unavailable || [];
+    // サーバー側で CSV 由来の新規 calendar_id が Members に追加されている場合があるため更新
+    if (res.members && res.members.length) {
+      state.members = res.members;
+      $('memberEmpty').hidden = state.members.length > 0;
+      renderMemberList();
+    }
     renderUnavailable();
     renderGrid();
     setStatus('');
   }
 
   function renderUnavailable() {
-    const area = $('unavailableArea');
-    const ul = $('unavailableList');
-    ul.innerHTML = '';
-    if (!state.unavailable.length) {
-      area.hidden = true;
-      return;
-    }
-    area.hidden = false;
-    state.unavailable.forEach(u => {
-      const li = document.createElement('li');
-      li.textContent = (u.name || u.calendarId) + ': ' + (u.error || '取得不可');
-      ul.appendChild(li);
-    });
+    // CSV データソースでは取得不可リストを使用しない (残しておくと無害)
   }
 
   function renderGrid() {
