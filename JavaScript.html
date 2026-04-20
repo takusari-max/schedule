@@ -173,7 +173,7 @@
 
     const grid = document.createElement('div');
     grid.className = 'time-grid';
-    grid.style.gridTemplateColumns = 'var(--time-col-width) repeat(' + visibleMembers.length + ', minmax(var(--col-min-width), 1fr))';
+    grid.style.gridTemplateColumns = 'var(--time-col-width) repeat(' + visibleMembers.length + ', var(--col-width))';
 
     // ヘッダ行: 時間 + 各メンバー名
     const timeHeader = document.createElement('div');
@@ -261,7 +261,7 @@
       label.textContent = '終日';
       const allDayGrid = document.createElement('div');
       allDayGrid.className = 'all-day-grid';
-      allDayGrid.style.gridTemplateColumns = 'repeat(' + visibleMembers.length + ', minmax(var(--col-min-width), 1fr))';
+      allDayGrid.style.gridTemplateColumns = 'repeat(' + visibleMembers.length + ', var(--col-width))';
       visibleMembers.forEach(m => {
         const cell = document.createElement('div');
         cell.className = 'all-day-cell';
