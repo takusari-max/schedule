@@ -1,17 +1,15 @@
 /**
- * SpreadsheetService: Members / EventVisibility / Config シートの CRUD と、
+ * SpreadsheetService: Members / Config シートの CRUD と、
  * 別スプレッドシート (電話帳) からの氏名ルックアップ。
  *
  * スプレッドシート ID はスクリプトプロパティ SPREADSHEET_ID を参照する。
  */
 
 const SHEET_MEMBERS = 'Members';
-const SHEET_EVENT_VIS = 'EventVisibility';
 const SHEET_CONFIG = 'Config';
 
 // Members は CalendarID と Visible だけ管理。氏名は電話帳から引く。
 const MEMBERS_HEADER = ['CalendarID', 'Visible', 'Color'];
-const EVENT_VIS_HEADER = ['CalendarID', 'EventKey', 'ShowDetails', 'UpdatedAt'];
 const CONFIG_HEADER = ['Key', 'Value'];
 
 const DEFAULT_CONFIG = [
@@ -55,7 +53,6 @@ function ensureSheet_(ss, name, header) {
 function setupSpreadsheet() {
   const ss = getSpreadsheet_();
   ensureSheet_(ss, SHEET_MEMBERS, MEMBERS_HEADER);
-  ensureSheet_(ss, SHEET_EVENT_VIS, EVENT_VIS_HEADER);
   const { sheet: configSheet, created: configCreated } = ensureSheet_(ss, SHEET_CONFIG, CONFIG_HEADER);
   if (configCreated || configSheet.getLastRow() <= 1) {
     configSheet.getRange(2, 1, DEFAULT_CONFIG.length, 2).setValues(DEFAULT_CONFIG);
@@ -122,37 +119,6 @@ function setMemberVisibleInternal_(calendarId, visible) {
   // 無ければ新規追加
   sheet.appendRow([calendarId, visible ? true : false, '']);
   return true;
-}
-
-function getEventVisibilityMap_() {
-  const ss = getSpreadsheet_();
-  const sheet = ss.getSheetByName(SHEET_EVENT_VIS);
-  if (!sheet || sheet.getLastRow() < 2) return {};
-  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, EVENT_VIS_HEADER.length).getValues();
-  const map = {};
-  values.forEach(row => {
-    const key = row[0] + '\t' + row[1];
-    map[key] = row[2] === true || String(row[2]).toUpperCase() === 'TRUE';
-  });
-  return map;
-}
-
-function upsertEventVisibility_(calendarId, eventKey, showDetails) {
-  const ss = getSpreadsheet_();
-  const sheet = ss.getSheetByName(SHEET_EVENT_VIS);
-  if (!sheet) throw new Error('EventVisibility シートがありません。setupSpreadsheet を実行してください。');
-  const last = sheet.getLastRow();
-  const now = new Date();
-  if (last >= 2) {
-    const values = sheet.getRange(2, 1, last - 1, 2).getValues();
-    for (let i = 0; i < values.length; i++) {
-      if (String(values[i][0]) === calendarId && String(values[i][1]) === eventKey) {
-        sheet.getRange(i + 2, 3, 1, 2).setValues([[showDetails ? true : false, now]]);
-        return;
-      }
-    }
-  }
-  sheet.appendRow([calendarId, eventKey, showDetails ? true : false, now]);
 }
 
 function getConfigMap_() {

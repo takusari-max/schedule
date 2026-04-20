@@ -235,13 +235,12 @@
           const topMin = (evStart - dayStart.getTime()) / 60000;
           const heightMin = (evEnd - evStart) / 60000;
           const block = document.createElement('div');
-          block.className = 'event-block' + (ev.showDetails ? '' : ' hidden-details');
+          block.className = 'event-block';
           block.style.top = (topMin * pxPerMinute) + 'px';
           block.style.height = Math.max(heightMin * pxPerMinute, 16) + 'px';
           block.dataset.eventKey = ev.eventKey;
           block.dataset.calendarId = ev.calendarId;
           renderEventContent(block, ev);
-          block.addEventListener('click', () => toggleEventDetails(ev, block));
           col.appendChild(block);
         });
 
@@ -264,10 +263,9 @@
           );
           matches.forEach(({ ev }) => {
             const el = document.createElement('div');
-            el.className = 'all-day-event' + (ev.showDetails ? '' : ' hidden-details');
-            el.textContent = (ev.showDetails ? '● ' : '◌ ') + (ev.showDetails ? ev.title : '予定あり');
-            el.title = ev.showDetails ? ev.title : '予定あり (クリックで表示)';
-            el.addEventListener('click', () => toggleEventDetails(ev, el, true));
+            el.className = 'all-day-event';
+            el.textContent = ev.title;
+            el.title = ev.title;
             cell.appendChild(el);
           });
           allDayGrid.appendChild(cell);
@@ -286,46 +284,13 @@
 
   function renderEventContent(block, ev) {
     block.innerHTML = '';
-    const eye = document.createElement('span');
-    eye.className = 'eye';
-    eye.textContent = ev.showDetails ? '●' : '◌';
     const text = document.createElement('span');
-    text.textContent = ev.showDetails ? ev.title : '予定あり';
-    block.appendChild(eye);
+    text.textContent = ev.title;
     block.appendChild(text);
-    if (ev.showDetails) {
-      const t = document.createElement('span');
-      t.className = 'time';
-      t.textContent = formatHM(new Date(ev.startMs)) + '–' + formatHM(new Date(ev.endMs));
-      block.appendChild(t);
-    }
-  }
-
-  function toggleEventDetails(ev, el, isAllDay) {
-    const next = !ev.showDetails;
-    ev.showDetails = next;
-    if (isAllDay) {
-      el.classList.toggle('hidden-details', !next);
-      el.textContent = (next ? '● ' : '◌ ') + (next ? ev.title : '予定あり');
-    } else {
-      el.classList.toggle('hidden-details', !next);
-      renderEventContent(el, ev);
-    }
-    setStatus('表示設定を保存中…');
-    google.script.run
-      .withSuccessHandler(() => setStatus(''))
-      .withFailureHandler(err => {
-        ev.showDetails = !next; // ロールバック
-        if (isAllDay) {
-          el.classList.toggle('hidden-details', !ev.showDetails);
-          el.textContent = (ev.showDetails ? '● ' : '◌ ') + (ev.showDetails ? ev.title : '予定あり');
-        } else {
-          el.classList.toggle('hidden-details', !ev.showDetails);
-          renderEventContent(el, ev);
-        }
-        onFailure(err);
-      })
-      .setEventShowDetails(ev.calendarId, ev.eventKey, next);
+    const t = document.createElement('span');
+    t.className = 'time';
+    t.textContent = formatHM(new Date(ev.startMs)) + '–' + formatHM(new Date(ev.endMs));
+    block.appendChild(t);
   }
 
   function formatDay(d) {

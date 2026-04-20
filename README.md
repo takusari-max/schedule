@@ -9,7 +9,7 @@ Google Apps Script で動く、複数メンバーの予定をタイムグリッ�
 - **予定データは Drive フォルダ上の CSV から取得** (Google カレンダーには直接アクセスしない)
 - **氏名は電話帳スプレッドシートからアドレスで自動引き当て**
 - メンバーごとの表示／非表示チェックボックス
-- 予定 1 件ごとに「内容表示 / 予定あり」を切替（クリック）、設定はスプレッドシートに永続化
+- 予定ブロックには CSV `event_name` の内容をそのまま表示
 - 終日予定はグリッド上部の帯に別表示
 
 ## データソース
@@ -48,7 +48,7 @@ Google Apps Script で動く、複数メンバーの予定をタイムグリッ�
 | --- | --- |
 | `appsscript.json` | マニフェスト (タイムゾーン、OAuth スコープ、Web アプリ設定) |
 | `Code.gs` | `doGet`, `include`, シートメニュー (`onOpen`) |
-| `Api.gs` | クライアント公開関数 (`getConfig` / `getSchedules` / `setMemberVisible` / `setEventShowDetails`) |
+| `Api.gs` | クライアント公開関数 (`getConfig` / `getSchedules` / `setMemberVisible`) |
 | `EventDataService.gs` | CSV からの予定読み込み・整形 |
 | `SpreadsheetService.gs` | 設定シート CRUD と電話帳ルックアップ |
 | `Index.html` | メイン UI |
@@ -62,8 +62,6 @@ Google Apps Script で動く、複数メンバーの予定をタイムグリッ�
 - **Members**: `CalendarID | Visible | Color`
   - CSV から登場した calendar_id は自動で `Visible=TRUE` で追記される
   - 色を指定したい場合のみ手動で `Color` (例 `#4285f4`) を入れる
-- **EventVisibility**: `CalendarID | EventKey | ShowDetails | UpdatedAt`
-  - 予定ごとの内容表示設定 (UI クリックで自動書込)
 - **Config**: `Key | Value`
   - `dayStartHour` / `dayEndHour` / `slotMinutes` / `timezone`
   - `csvFolderId` / `csvFileName`
@@ -101,7 +99,7 @@ GAS エディタ「プロジェクトの設定」→「スクリプト プロパ
 ### 4. 初回セットアップ関数を実行
 
 GAS エディタで `setupSpreadsheet` を実行し、OAuth 認可を通す (Drive / Sheets の読み書き)。
-Members / EventVisibility / Config シートが自動作成され、Config に既定値 (CSV フォルダ ID・電話帳 ID・各列番号) が入る。
+Members / Config シートが自動作成され、Config に既定値 (CSV フォルダ ID・電話帳 ID・各列番号) が入る。既存環境に旧 `EventVisibility` シートが残っている場合は現在は未使用のため、手動で削除して構わない。
 
 ### 5. 必要なら Config を編集
 
@@ -127,7 +125,7 @@ GAS エディタで「デプロイ」→「新しいデプロイ」→「ウェ�
 1. Web アプリを開く → 当日〜翌日の範囲で CSV に含まれる全メンバーの予定が表示される (CSV の calendar_id は自動で Members に登録)
 2. 期間を変更したい場合は「開始日 / 終了日」を変更 → 自動で更新
 3. メンバーを絞り込みたい場合はサイドバーのチェックを外す (Members シートに永続化)
-4. 予定ブロックをクリックすると「予定あり」⇔ タイトル表示が切り替わる (EventVisibility シートに永続化)
+4. 予定ブロックには CSV の `event_name` 列の内容がそのまま表示される
 
 ## 動作仕様 (内部)
 

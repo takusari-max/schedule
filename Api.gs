@@ -35,27 +35,15 @@ function getSchedules(startISO, endISO) {
   const visibleSet = {};
   memberRows.forEach(m => { if (m.visible) visibleSet[m.calendarId] = true; });
 
-  const visMap = getEventVisibilityMap_();
-  const filtered = events
-    .filter(ev => visibleSet[ev.calendarId])
-    .map(ev => {
-      const visKey = ev.calendarId + '\t' + ev.eventKey;
-      ev.showDetails = visMap[visKey] === true;
-      return ev;
-    });
+  const filtered = events.filter(ev => visibleSet[ev.calendarId]);
 
   const members = resolveMemberNames_(memberRows);
-  return { events: filtered, members: members, unavailable: [] };
+  return { events: filtered, members: members };
 }
 
 function setMemberVisible(calendarId, visible) {
   const ok = setMemberVisibleInternal_(String(calendarId), !!visible);
   return { ok: ok };
-}
-
-function setEventShowDetails(calendarId, eventKey, showDetails) {
-  upsertEventVisibility_(String(calendarId), String(eventKey), !!showDetails);
-  return { ok: true };
 }
 
 /**

@@ -6,7 +6,6 @@
     --border: #d9dde3;
     --header-bg: #f5f7fa;
     --event-bg: #4285f4;
-    --event-bg-hidden: #9aa0a6;
     --event-fg: #fff;
     --danger: #d93025;
   }
@@ -172,21 +171,9 @@
     border-radius: 4px;
     padding: 4px 6px;
     font-size: 12px;
-    cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
     box-shadow: 0 1px 2px rgba(0,0,0,0.12);
-    user-select: none;
-  }
-  .event-block.hidden-details {
-    background: var(--event-bg-hidden);
-    font-style: italic;
-  }
-  .event-block:hover { filter: brightness(1.05); }
-  .event-block .eye {
-    font-size: 10px;
-    margin-right: 4px;
-    opacity: 0.85;
   }
   .event-block .time {
     font-size: 10px;
@@ -200,13 +187,8 @@
     border-radius: 3px;
     padding: 2px 6px;
     font-size: 11px;
-    cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .all-day-event.hidden-details {
-    background: var(--event-bg-hidden);
-    font-style: italic;
   }
 </style>
