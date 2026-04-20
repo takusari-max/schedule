@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <?!= include('Stylesheet'); ?>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>スケジュール調整</h1>
+      <div class="date-range">
+        <label>開始日 <input type="date" id="startDate"></label>
+        <label>終了日 <input type="date" id="endDate"></label>
+        <button id="reloadBtn" type="button">更新</button>
+      </div>
+      <div id="status" class="status"></div>
+    </header>
+
+    <main class="app-main">
+      <aside class="sidebar">
+        <h2>メンバー</h2>
+        <ul id="memberList" class="member-list"></ul>
+        <div id="memberEmpty" class="empty-note" hidden>
+          Members シートに CalendarID を追加してください。
+        </div>
+        <section id="unavailableArea" class="unavailable" hidden>
+          <h3>取得不可</h3>
+          <ul id="unavailableList"></ul>
+        </section>
+      </aside>
+
+      <section class="grid-wrap">
+        <div id="allDayArea" class="all-day-area" hidden>
+          <div class="all-day-label">終日</div>
+          <div id="allDayGrid" class="all-day-grid"></div>
+        </div>
+        <div id="timeGrid" class="time-grid" role="grid" aria-label="タイムグリッド"></div>
+      </section>
+    </main>
+
+    <?!= include('JavaScript'); ?>
+  </body>
+</html>

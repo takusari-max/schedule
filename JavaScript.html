@@ -1,0 +1,356 @@
+<script>
+(function () {
+  'use strict';
+
+  const state = {
+    members: [],
+    config: { dayStartHour: 8, dayEndHour: 20, slotMinutes: 15, timezone: 'Asia/Tokyo' },
+    events: [],
+    unavailable: []
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  function setStatus(text, isError) {
+    const el = $('status');
+    el.textContent = text || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  function todayISO(offsetDays) {
+    const d = new Date();
+    d.setDate(d.getDate() + (offsetDays || 0));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function init() {
+    $('startDate').value = todayISO(0);
+    $('endDate').value = todayISO(1);
+
+    $('reloadBtn').addEventListener('click', loadSchedules);
+    $('startDate').addEventListener('change', loadSchedules);
+    $('endDate').addEventListener('change', loadSchedules);
+
+    setStatus('設定を読み込み中…');
+    google.script.run
+      .withSuccessHandler(onConfigLoaded)
+      .withFailureHandler(onFailure)
+      .getConfig();
+  }
+
+  function onConfigLoaded(res) {
+    state.members = res.members || [];
+    state.config = Object.assign(state.config, parseConfig(res.config || {}));
+    renderMemberList();
+    if (state.members.length === 0) {
+      $('memberEmpty').hidden = false;
+      setStatus('');
+      return;
+    }
+    $('memberEmpty').hidden = true;
+    loadSchedules();
+  }
+
+  function parseConfig(raw) {
+    return {
+      dayStartHour: Number(raw.dayStartHour) || 8,
+      dayEndHour: Number(raw.dayEndHour) || 20,
+      slotMinutes: Number(raw.slotMinutes) || 15,
+      timezone: raw.timezone || 'Asia/Tokyo'
+    };
+  }
+
+  function renderMemberList() {
+    const ul = $('memberList');
+    ul.innerHTML = '';
+    state.members.forEach(m => {
+      const li = document.createElement('li');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!m.visible;
+      cb.addEventListener('change', () => toggleMember(m, cb.checked));
+      const color = document.createElement('span');
+      color.className = 'member-color';
+      if (m.color) color.style.background = m.color;
+      const name = document.createElement('span');
+      name.textContent = m.name || m.calendarId;
+      name.title = m.calendarId;
+      li.appendChild(cb);
+      li.appendChild(color);
+      li.appendChild(name);
+      ul.appendChild(li);
+    });
+  }
+
+  function toggleMember(member, visible) {
+    member.visible = visible;
+    setStatus('メンバー表示設定を保存中…');
+    google.script.run
+      .withSuccessHandler(() => { setStatus(''); loadSchedules(); })
+      .withFailureHandler(onFailure)
+      .setMemberVisible(member.calendarId, visible);
+  }
+
+  function loadSchedules() {
+    const startStr = $('startDate').value;
+    const endStr = $('endDate').value;
+    if (!startStr || !endStr) return;
+    const start = new Date(startStr + 'T00:00:00');
+    const end = new Date(endStr + 'T00:00:00');
+    end.setDate(end.getDate() + 1); // 終了日を含めるため翌日0時まで
+    if (end <= start) {
+      setStatus('終了日は開始日以降にしてください。', true);
+      return;
+    }
+    setStatus('予定を取得中…');
+    google.script.run
+      .withSuccessHandler(onSchedulesLoaded)
+      .withFailureHandler(onFailure)
+      .getSchedules(start.toISOString(), end.toISOString());
+  }
+
+  function onSchedulesLoaded(res) {
+    state.events = res.events || [];
+    state.unavailable = res.unavailable || [];
+    renderUnavailable();
+    renderGrid();
+    setStatus('');
+  }
+
+  function renderUnavailable() {
+    const area = $('unavailableArea');
+    const ul = $('unavailableList');
+    ul.innerHTML = '';
+    if (!state.unavailable.length) {
+      area.hidden = true;
+      return;
+    }
+    area.hidden = false;
+    state.unavailable.forEach(u => {
+      const li = document.createElement('li');
+      li.textContent = (u.name || u.calendarId) + ': ' + (u.error || '取得不可');
+      ul.appendChild(li);
+    });
+  }
+
+  function renderGrid() {
+    const visibleMembers = state.members.filter(m => m.visible);
+    const grid = $('timeGrid');
+    const allDayArea = $('allDayArea');
+    const allDayGrid = $('allDayGrid');
+    grid.innerHTML = '';
+    allDayGrid.innerHTML = '';
+
+    if (visibleMembers.length === 0) {
+      grid.innerHTML = '<div class="empty-note" style="padding:16px">表示するメンバーを選択してください。</div>';
+      allDayArea.hidden = true;
+      return;
+    }
+
+    const startStr = $('startDate').value;
+    const endStr = $('endDate').value;
+    const rangeStart = new Date(startStr + 'T00:00:00');
+    const rangeEnd = new Date(endStr + 'T00:00:00');
+    rangeEnd.setDate(rangeEnd.getDate() + 1);
+
+    const days = [];
+    for (let d = new Date(rangeStart); d < rangeEnd; d.setDate(d.getDate() + 1)) {
+      days.push(new Date(d));
+    }
+
+    const startHour = state.config.dayStartHour;
+    const endHour = state.config.dayEndHour;
+    const slot = state.config.slotMinutes;
+    const minutesPerDay = (endHour - startHour) * 60;
+    const slotHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slot-height')) || 12;
+    const pxPerMinute = slotHeight / slot;
+    const dayHeight = minutesPerDay * pxPerMinute;
+
+    // 列構造: [時間列] + (日ごと × メンバー列)
+    const totalCols = 1 + days.length * visibleMembers.length;
+    grid.style.gridTemplateColumns = 'var(--time-col-width) repeat(' + (days.length * visibleMembers.length) + ', minmax(var(--col-min-width), 1fr))';
+
+    // ヘッダ行
+    const timeHeader = document.createElement('div');
+    timeHeader.className = 'time-col time-label header';
+    timeHeader.textContent = '時間';
+    grid.appendChild(timeHeader);
+
+    days.forEach(day => {
+      visibleMembers.forEach(m => {
+        const h = document.createElement('div');
+        h.className = 'time-col header';
+        const label = formatDay(day) + ' / ' + (m.name || m.calendarId);
+        h.textContent = label;
+        h.title = m.calendarId;
+        grid.appendChild(h);
+      });
+    });
+
+    // 時間ラベル列
+    const timeCol = document.createElement('div');
+    timeCol.className = 'time-col time-label';
+    timeCol.style.height = dayHeight + 'px';
+    for (let h = startHour; h <= endHour; h++) {
+      const mark = document.createElement('div');
+      mark.className = 'hour-mark';
+      mark.style.top = ((h - startHour) * 60 * pxPerMinute) + 'px';
+      mark.textContent = String(h).padStart(2, '0') + ':00';
+      timeCol.appendChild(mark);
+    }
+    grid.appendChild(timeCol);
+
+    // 各日×メンバー列
+    const allDayColsTemplate = [];
+    days.forEach(day => {
+      visibleMembers.forEach(m => {
+        const col = document.createElement('div');
+        col.className = 'member-column';
+        col.style.height = dayHeight + 'px';
+
+        // 時間ガイド線
+        for (let h = startHour; h < endHour; h++) {
+          const hm = document.createElement('div');
+          hm.className = 'hour-mark';
+          hm.style.top = ((h - startHour) * 60 * pxPerMinute) + 'px';
+          col.appendChild(hm);
+          const half = document.createElement('div');
+          half.className = 'half-hour-mark';
+          half.style.top = (((h - startHour) * 60 + 30) * pxPerMinute) + 'px';
+          col.appendChild(half);
+        }
+
+        // 該当イベントを描画
+        const dayStart = new Date(day); dayStart.setHours(startHour, 0, 0, 0);
+        const dayEnd = new Date(day); dayEnd.setHours(endHour, 0, 0, 0);
+        const dayStartMs = new Date(day).setHours(0, 0, 0, 0);
+        const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+
+        const dayEvents = state.events.filter(ev =>
+          ev.calendarId === m.calendarId &&
+          ev.endMs > dayStartMs && ev.startMs < dayEndMs
+        );
+
+        dayEvents.forEach(ev => {
+          if (ev.allDay) {
+            allDayColsTemplate.push({ ev: ev, member: m, day: day });
+            return;
+          }
+          const evStart = Math.max(ev.startMs, dayStart.getTime());
+          const evEnd = Math.min(ev.endMs, dayEnd.getTime());
+          if (evEnd <= evStart) return; // 表示時間外
+          const topMin = (evStart - dayStart.getTime()) / 60000;
+          const heightMin = (evEnd - evStart) / 60000;
+          const block = document.createElement('div');
+          block.className = 'event-block' + (ev.showDetails ? '' : ' hidden-details');
+          block.style.top = (topMin * pxPerMinute) + 'px';
+          block.style.height = Math.max(heightMin * pxPerMinute, 16) + 'px';
+          block.dataset.eventKey = ev.eventKey;
+          block.dataset.calendarId = ev.calendarId;
+          renderEventContent(block, ev);
+          block.addEventListener('click', () => toggleEventDetails(ev, block));
+          col.appendChild(block);
+        });
+
+        grid.appendChild(col);
+      });
+    });
+
+    // 終日イベント領域
+    if (allDayColsTemplate.length > 0) {
+      allDayArea.hidden = false;
+      allDayGrid.style.gridTemplateColumns = 'repeat(' + (days.length * visibleMembers.length) + ', minmax(var(--col-min-width), 1fr))';
+      // 空セルを配置して位置合わせ
+      days.forEach(day => {
+        visibleMembers.forEach(m => {
+          const cell = document.createElement('div');
+          cell.className = 'all-day-cell';
+          const matches = allDayColsTemplate.filter(x =>
+            x.member.calendarId === m.calendarId &&
+            sameDay_(x.day, day) // 終日は複数日跨ぎでも各日セルに出す
+          );
+          matches.forEach(({ ev }) => {
+            const el = document.createElement('div');
+            el.className = 'all-day-event' + (ev.showDetails ? '' : ' hidden-details');
+            el.textContent = (ev.showDetails ? '● ' : '◌ ') + (ev.showDetails ? ev.title : '予定あり');
+            el.title = ev.showDetails ? ev.title : '予定あり (クリックで表示)';
+            el.addEventListener('click', () => toggleEventDetails(ev, el, true));
+            cell.appendChild(el);
+          });
+          allDayGrid.appendChild(cell);
+        });
+      });
+    } else {
+      allDayArea.hidden = true;
+    }
+  }
+
+  function sameDay_(a, b) {
+    return a.getFullYear() === b.getFullYear() &&
+           a.getMonth() === b.getMonth() &&
+           a.getDate() === b.getDate();
+  }
+
+  function renderEventContent(block, ev) {
+    block.innerHTML = '';
+    const eye = document.createElement('span');
+    eye.className = 'eye';
+    eye.textContent = ev.showDetails ? '●' : '◌';
+    const text = document.createElement('span');
+    text.textContent = ev.showDetails ? ev.title : '予定あり';
+    block.appendChild(eye);
+    block.appendChild(text);
+    if (ev.showDetails) {
+      const t = document.createElement('span');
+      t.className = 'time';
+      t.textContent = formatHM(new Date(ev.startMs)) + '–' + formatHM(new Date(ev.endMs));
+      block.appendChild(t);
+    }
+  }
+
+  function toggleEventDetails(ev, el, isAllDay) {
+    const next = !ev.showDetails;
+    ev.showDetails = next;
+    if (isAllDay) {
+      el.classList.toggle('hidden-details', !next);
+      el.textContent = (next ? '● ' : '◌ ') + (next ? ev.title : '予定あり');
+    } else {
+      el.classList.toggle('hidden-details', !next);
+      renderEventContent(el, ev);
+    }
+    setStatus('表示設定を保存中…');
+    google.script.run
+      .withSuccessHandler(() => setStatus(''))
+      .withFailureHandler(err => {
+        ev.showDetails = !next; // ロールバック
+        if (isAllDay) {
+          el.classList.toggle('hidden-details', !ev.showDetails);
+          el.textContent = (ev.showDetails ? '● ' : '◌ ') + (ev.showDetails ? ev.title : '予定あり');
+        } else {
+          el.classList.toggle('hidden-details', !ev.showDetails);
+          renderEventContent(el, ev);
+        }
+        onFailure(err);
+      })
+      .setEventShowDetails(ev.calendarId, ev.eventKey, next);
+  }
+
+  function formatDay(d) {
+    const w = ['日','月','火','水','木','金','土'][d.getDay()];
+    return (d.getMonth() + 1) + '/' + d.getDate() + '(' + w + ')';
+  }
+  function formatHM(d) {
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function onFailure(err) {
+    console.error(err);
+    setStatus((err && err.message) || 'エラーが発生しました', true);
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>

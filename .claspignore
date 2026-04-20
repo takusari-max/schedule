@@ -1,0 +1,11 @@
+# デフォルトは全除外 → 必要なものだけ pushする
+**/**
+
+!appsscript.json
+!Code.gs
+!Api.gs
+!CalendarService.gs
+!SpreadsheetService.gs
+!Index.html
+!Stylesheet.html
+!JavaScript.html
