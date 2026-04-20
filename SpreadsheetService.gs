@@ -86,21 +86,22 @@ function getMemberRows_() {
 }
 
 /**
- * CSV から取得した calendar_id 一覧で Members シートを同期。
- * 未登録のものは Visible=TRUE で追記する (既存の Visible 状態は尊重)。
+ * CSV から取得した calendar_id 一覧で Members シートをリセット再構築する。
+ * 既存のデータ行を削除してから、CSV 由来の全 calendar_id を Visible=TRUE で書き込む。
+ * Color 等のカスタマイズ情報はリロードのたびに失われる。
  */
-function syncMembersFromCalendarIds_(calendarIds) {
+function resetMembersFromCalendarIds_(calendarIds) {
   const ss = getSpreadsheet_();
   const { sheet } = ensureSheet_(ss, SHEET_MEMBERS, MEMBERS_HEADER);
-  const existing = {};
-  if (sheet.getLastRow() >= 2) {
-    const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
-    values.forEach(r => { existing[String(r[0]).trim()] = true; });
+  // ヘッダを除くデータ行をクリア
+  const last = sheet.getLastRow();
+  if (last >= 2) {
+    sheet.getRange(2, 1, last - 1, MEMBERS_HEADER.length).clearContent();
   }
-  const toAdd = calendarIds.filter(id => id && !existing[id]);
-  if (toAdd.length === 0) return;
-  const rows = toAdd.map(id => [id, true, '']);
-  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, MEMBERS_HEADER.length).setValues(rows);
+  const unique = Array.from(new Set(calendarIds.filter(id => id)));
+  if (unique.length === 0) return;
+  const rows = unique.map(id => [id, true, '']);
+  sheet.getRange(2, 1, rows.length, MEMBERS_HEADER.length).setValues(rows);
 }
 
 function setMemberVisibleInternal_(calendarId, visible) {

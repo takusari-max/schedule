@@ -27,8 +27,8 @@ function getSchedules(startISO, endISO) {
   // CSV から期間内イベントを取得
   const { events, calendarIds } = fetchEventsFromCsv_(folderId, fileName, start, end);
 
-  // 新しく登場した calendar_id は Members シートに自動登録 (Visible=TRUE)
-  syncMembersFromCalendarIds_(calendarIds);
+  // Members シートを CSV の calendar_id 一覧でリセット (全員 Visible=TRUE で再構築)
+  resetMembersFromCalendarIds_(calendarIds);
 
   // Members で visible=TRUE のものだけを残す
   const memberRows = getMemberRows_();
