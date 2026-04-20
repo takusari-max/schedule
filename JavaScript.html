@@ -80,12 +80,9 @@
   }
 
   function toggleMember(member, visible) {
+    // クライアント側のみで表示切替 (サーバーへの保存・再読込はしない)
     member.visible = visible;
-    setStatus('メンバー表示設定を保存中…');
-    google.script.run
-      .withSuccessHandler(() => { setStatus(''); loadSchedules(); })
-      .withFailureHandler(onFailure)
-      .setMemberVisible(member.calendarId, visible);
+    renderGrid();
   }
 
   function loadSchedules() {
@@ -114,9 +111,7 @@
     state.unavailable = [];
     $('memberList').innerHTML = '';
     $('memberEmpty').hidden = true;
-    $('timeGrid').innerHTML = '';
-    $('allDayGrid').innerHTML = '';
-    $('allDayArea').hidden = true;
+    $('daySections').innerHTML = '';
   }
 
   function onSchedulesLoaded(res) {
@@ -135,16 +130,12 @@
   }
 
   function renderGrid() {
-    const visibleMembers = state.members.filter(m => m.visible);
-    const grid = $('timeGrid');
-    const allDayArea = $('allDayArea');
-    const allDayGrid = $('allDayGrid');
-    grid.innerHTML = '';
-    allDayGrid.innerHTML = '';
+    const container = $('daySections');
+    container.innerHTML = '';
 
+    const visibleMembers = state.members.filter(m => m.visible);
     if (visibleMembers.length === 0) {
-      grid.innerHTML = '<div class="empty-note" style="padding:16px">表示するメンバーを選択してください。</div>';
-      allDayArea.hidden = true;
+      container.innerHTML = '<div class="empty-note" style="padding:16px">表示するメンバーを選択してください。</div>';
       return;
     }
 
@@ -159,6 +150,10 @@
       days.push(new Date(d));
     }
 
+    days.forEach(day => container.appendChild(buildDaySection_(day, visibleMembers)));
+  }
+
+  function buildDaySection_(day, visibleMembers) {
     const startHour = state.config.dayStartHour;
     const endHour = state.config.dayEndHour;
     const slot = state.config.slotMinutes;
@@ -167,25 +162,30 @@
     const pxPerMinute = slotHeight / slot;
     const dayHeight = minutesPerDay * pxPerMinute;
 
-    // 列構造: [時間列] + (日ごと × メンバー列)
-    const totalCols = 1 + days.length * visibleMembers.length;
-    grid.style.gridTemplateColumns = 'var(--time-col-width) repeat(' + (days.length * visibleMembers.length) + ', minmax(var(--col-min-width), 1fr))';
+    const section = document.createElement('section');
+    section.className = 'day-section';
 
-    // ヘッダ行
+    // 日付ヘッダ
+    const header = document.createElement('div');
+    header.className = 'day-header';
+    header.textContent = formatDay(day);
+    section.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'time-grid';
+    grid.style.gridTemplateColumns = 'var(--time-col-width) repeat(' + visibleMembers.length + ', minmax(var(--col-min-width), 1fr))';
+
+    // ヘッダ行: 時間 + 各メンバー名
     const timeHeader = document.createElement('div');
     timeHeader.className = 'time-col time-label header';
     timeHeader.textContent = '時間';
     grid.appendChild(timeHeader);
-
-    days.forEach(day => {
-      visibleMembers.forEach(m => {
-        const h = document.createElement('div');
-        h.className = 'time-col header';
-        const label = formatDay(day) + ' / ' + (m.name || m.calendarId);
-        h.textContent = label;
-        h.title = m.calendarId;
-        grid.appendChild(h);
-      });
+    visibleMembers.forEach(m => {
+      const h = document.createElement('div');
+      h.className = 'time-col header';
+      h.textContent = m.name || m.calendarId;
+      h.title = m.calendarId;
+      grid.appendChild(h);
     });
 
     // 時間ラベル列
@@ -201,87 +201,88 @@
     }
     grid.appendChild(timeCol);
 
-    // 各日×メンバー列
-    const allDayColsTemplate = [];
-    days.forEach(day => {
-      visibleMembers.forEach(m => {
-        const col = document.createElement('div');
-        col.className = 'member-column';
-        col.style.height = dayHeight + 'px';
+    // メンバー列
+    const dayStart = new Date(day); dayStart.setHours(startHour, 0, 0, 0);
+    const dayEnd = new Date(day); dayEnd.setHours(endHour, 0, 0, 0);
+    const dayStartMs = new Date(day).setHours(0, 0, 0, 0);
+    const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
 
-        // 時間ガイド線
-        for (let h = startHour; h < endHour; h++) {
-          const hm = document.createElement('div');
-          hm.className = 'hour-mark';
-          hm.style.top = ((h - startHour) * 60 * pxPerMinute) + 'px';
-          col.appendChild(hm);
-          const half = document.createElement('div');
-          half.className = 'half-hour-mark';
-          half.style.top = (((h - startHour) * 60 + 30) * pxPerMinute) + 'px';
-          col.appendChild(half);
+    const allDayItems = [];
+    visibleMembers.forEach(m => {
+      const col = document.createElement('div');
+      col.className = 'member-column';
+      col.style.height = dayHeight + 'px';
+
+      for (let h = startHour; h < endHour; h++) {
+        const hm = document.createElement('div');
+        hm.className = 'hour-mark';
+        hm.style.top = ((h - startHour) * 60 * pxPerMinute) + 'px';
+        col.appendChild(hm);
+        const half = document.createElement('div');
+        half.className = 'half-hour-mark';
+        half.style.top = (((h - startHour) * 60 + 30) * pxPerMinute) + 'px';
+        col.appendChild(half);
+      }
+
+      const dayEvents = state.events.filter(ev =>
+        ev.calendarId === m.calendarId &&
+        ev.endMs > dayStartMs && ev.startMs < dayEndMs
+      );
+
+      dayEvents.forEach(ev => {
+        if (ev.allDay) {
+          allDayItems.push({ ev: ev, member: m });
+          return;
         }
-
-        // 該当イベントを描画
-        const dayStart = new Date(day); dayStart.setHours(startHour, 0, 0, 0);
-        const dayEnd = new Date(day); dayEnd.setHours(endHour, 0, 0, 0);
-        const dayStartMs = new Date(day).setHours(0, 0, 0, 0);
-        const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
-
-        const dayEvents = state.events.filter(ev =>
-          ev.calendarId === m.calendarId &&
-          ev.endMs > dayStartMs && ev.startMs < dayEndMs
-        );
-
-        dayEvents.forEach(ev => {
-          if (ev.allDay) {
-            allDayColsTemplate.push({ ev: ev, member: m, day: day });
-            return;
-          }
-          const evStart = Math.max(ev.startMs, dayStart.getTime());
-          const evEnd = Math.min(ev.endMs, dayEnd.getTime());
-          if (evEnd <= evStart) return; // 表示時間外
-          const topMin = (evStart - dayStart.getTime()) / 60000;
-          const heightMin = (evEnd - evStart) / 60000;
-          const block = document.createElement('div');
-          block.className = 'event-block';
-          block.style.top = (topMin * pxPerMinute) + 'px';
-          block.style.height = Math.max(heightMin * pxPerMinute, 16) + 'px';
-          block.dataset.eventKey = ev.eventKey;
-          block.dataset.calendarId = ev.calendarId;
-          renderEventContent(block, ev);
-          col.appendChild(block);
-        });
-
-        grid.appendChild(col);
+        const evStart = Math.max(ev.startMs, dayStart.getTime());
+        const evEnd = Math.min(ev.endMs, dayEnd.getTime());
+        if (evEnd <= evStart) return; // 表示時間外
+        const topMin = (evStart - dayStart.getTime()) / 60000;
+        const heightMin = (evEnd - evStart) / 60000;
+        const block = document.createElement('div');
+        block.className = 'event-block';
+        block.style.top = (topMin * pxPerMinute) + 'px';
+        block.style.height = Math.max(heightMin * pxPerMinute, 16) + 'px';
+        block.dataset.eventKey = ev.eventKey;
+        block.dataset.calendarId = ev.calendarId;
+        renderEventContent(block, ev);
+        col.appendChild(block);
       });
+
+      grid.appendChild(col);
     });
 
-    // 終日イベント領域
-    if (allDayColsTemplate.length > 0) {
-      allDayArea.hidden = false;
-      allDayGrid.style.gridTemplateColumns = 'repeat(' + (days.length * visibleMembers.length) + ', minmax(var(--col-min-width), 1fr))';
-      // 空セルを配置して位置合わせ
-      days.forEach(day => {
-        visibleMembers.forEach(m => {
-          const cell = document.createElement('div');
-          cell.className = 'all-day-cell';
-          const matches = allDayColsTemplate.filter(x =>
-            x.member.calendarId === m.calendarId &&
-            sameDay_(x.day, day) // 終日は複数日跨ぎでも各日セルに出す
-          );
-          matches.forEach(({ ev }) => {
+    // 終日イベント (この日分のみ)
+    if (allDayItems.length > 0) {
+      const allDayArea = document.createElement('div');
+      allDayArea.className = 'all-day-area';
+      const label = document.createElement('div');
+      label.className = 'all-day-label';
+      label.textContent = '終日';
+      const allDayGrid = document.createElement('div');
+      allDayGrid.className = 'all-day-grid';
+      allDayGrid.style.gridTemplateColumns = 'repeat(' + visibleMembers.length + ', minmax(var(--col-min-width), 1fr))';
+      visibleMembers.forEach(m => {
+        const cell = document.createElement('div');
+        cell.className = 'all-day-cell';
+        allDayItems
+          .filter(x => x.member.calendarId === m.calendarId)
+          .forEach(({ ev }) => {
             const el = document.createElement('div');
             el.className = 'all-day-event';
             el.textContent = ev.title;
             el.title = ev.title;
             cell.appendChild(el);
           });
-          allDayGrid.appendChild(cell);
-        });
+        allDayGrid.appendChild(cell);
       });
-    } else {
-      allDayArea.hidden = true;
+      allDayArea.appendChild(label);
+      allDayArea.appendChild(allDayGrid);
+      section.appendChild(allDayArea);
     }
+
+    section.appendChild(grid);
+    return section;
   }
 
   function sameDay_(a, b) {
